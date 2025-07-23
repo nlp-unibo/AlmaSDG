@@ -34,7 +34,7 @@ ALL_ANNOTATORS = ['Annotator0',
 
 SDG = ['sdg 01', 'sdg 02', 'sdg 03', 'sdg 08', 'sdg 06', 'sdg 07', 'sdg 09', 'sdg 11', 'sdg 04', 'sdg 05', 'sdg 10', 'sdg 16', 'sdg 12', 'sdg 13', 'sdg 14', 'sdg 15', 'sdg 17']
 ANNOTATORS = ['Annotator0', 'Annotator1', 'Annotator2', 'Annotator3','Annotator4', 'Annotator5', 'Annotator6', 'Annotator7']
-LLM_VERSIONS= {"gemini": {"temp_00": "gemini_results_temp00_270824_newprompt"},
+LLM_VERSIONS= {"gemini": {"temp_00": "gemini_results_temp00_270824"},
 
                "gpt": {"temp_00": "gpt_answers_20082024_t00"},
                          
