@@ -2,16 +2,11 @@ import os
 import pandas as pd
 import krippendorff
 import numpy as np
-import matplotlib.pyplot as plt
-import json
+
 
 from itertools import combinations
-from tqdm import tqdm
-from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.metrics import cohen_kappa_score, f1_score, classification_report, confusion_matrix
-from typing import Dict, List, Optional, overload, Union
-from nltk.metrics import agreement
-from nltk.metrics.distance import masi_distance, jaccard_distance
+from sklearn.metrics import cohen_kappa_score, confusion_matrix
+from typing import Dict
 
 folder_path = os.path.join(os.pardir, 'datasets', 'annotations')
 
@@ -88,6 +83,9 @@ def get_sparse_label_array( df: pd.DataFrame ):
 
         return label_array
 
+def latexify(input_list:list)-> str:
+   return ' & '.join([str(np.round(value,2)) for value in input_list])
+
 def agreement_llm_humans( annotations, llm_name: str, metric:str ='cohen'):
 
     other_llms = list(LLM_VERSIONS.keys())
@@ -103,7 +101,8 @@ def agreement_llm_humans( annotations, llm_name: str, metric:str ='cohen'):
     assert list(sorted_mean_agreement.keys()) == sorted(list(sorted_mean_agreement.keys()))
 
     sorted_values = list(sorted_mean_agreement.values())
-    latex_llm_human_agreement = ' & '.join([str(np.round(value,2)) for value in sorted_values])
+    # latex_llm_human_agreement = ' & '.join([str(np.round(value,2)) for value in sorted_values])
+    latex_llm_human_agreement = latexify(sorted_values)
     
     print(f'\nHuman-{llm_name} agreement:\n\n{latex_llm_human_agreement}')
 
@@ -123,7 +122,8 @@ def agreement_llm_llm( annotations, llm_names: list[str], metric:str ='cohen'):
     assert list(sorted_mean_agreement.keys()) == sorted(list(sorted_mean_agreement.keys()))
 
     sorted_values = list(sorted_mean_agreement.values())
-    latex_llm_human_agreement = ' & '.join([str(np.round(value,2)) for value in sorted_values])
+    # latex_llm_human_agreement = ' & '.join([str(np.round(value,2)) for value in sorted_values])
+    latex_llm_human_agreement = latexify(sorted_values)
     
     print(f'\n{llm_names[0]}-{llm_names[1]} agreement:\n\n{latex_llm_human_agreement}')
 
@@ -134,10 +134,9 @@ def agreement_llm_llm( annotations, llm_names: list[str], metric:str ='cohen'):
 human_annotation_path = os.path.join(os.pardir,'datasets', "annotations")
 llm_annotation_path = os.path.join(os.pardir, 'datasets', 'other_tools')
 
-rounder = lambda x : np.round(x, 3)
+rounder = lambda x : np.round(x, 2)
 prepare_tool_labels = lambda x: tuple(map(float, str(x).replace('nan', '0').split(',')))
 
-save_files = False
 llm_version = 'temp_00' 
 verbose = True
 
@@ -146,9 +145,7 @@ agreement_metrics = ['cohen', 'krippendorff']
 human_annotations = ([os.path.join(human_annotation_path, file) for file in os.listdir(human_annotation_path)])
 llm_annotations = [os.path.join(llm_annotation_path, LLM_VERSIONS[file][llm_version])  for file in LLM_VERSIONS.keys()]
 
-osdg_outputs = pd.read_excel(os.path.join(folder_path, 'complete_dataset.xlsx'), sheet_name ='ToolsAnnotation')
-
-annotation_sheets = ({annotator :  pd.read_excel(annotator) for annotator in ANNOTATORS}| #Flexible version
+annotation_sheets = ({annotator :  pd.read_excel(os.path.join(human_annotation_path, annotator+'.xlsx')) for annotator in ANNOTATORS}| #Flexible version
                      {model : pd.read_excel(path+'.xlsx', sheet_name = 'ProcessedOutput') for model,path in zip(LLM_VERSIONS.keys(),llm_annotations)})
 
 for sheet in annotation_sheets.values(): sheet.rename(columns={col: col.strip() for col in sheet.columns}, inplace=True)
@@ -193,6 +190,9 @@ for group in ANNOTATION_GROUPS.keys():
         for sdg in ANNOTATION_GROUPS[group]['sdg']: #Gather annotators agreement at SDG level
             human_pair = False
 
+            if annotators_pair[0] not in LLM_VERSIONS.keys() and annotators_pair[1] not in LLM_VERSIONS.keys(): 
+                human_pair = True
+
             #transform into boolean the human annotations
             annotator_0_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[0]], annotators_pair[0], LLM_VERSIONS.keys())
             annotator_1_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[1]], annotators_pair[1], LLM_VERSIONS.keys())
@@ -212,27 +212,18 @@ for group in ANNOTATION_GROUPS.keys():
                 print(f"\nCohen Agreement on {sdg} between {pair_name}:  {annotation_values[group][sdg[:6] + ' agreement']}\n")
                 print(confusion_matrix(annotator_0_labels, annotator_1_labels))
         
-            if annotators_pair[0] not in LLM_VERSIONS.keys() and annotators_pair[1] not in LLM_VERSIONS.keys():
-                columns= columns + ['comments' +annotators_pair[0], 'comments'+annotators_pair[1]]
-            
-            #Remapping to clean the columns' name
-            columns_remamp = {'title' + annotators_pair[0] : 'title', 
-                            'abstract' +annotators_pair[0]: 'abstract',
-                            'keywords' +annotators_pair[0]: 'keywords',}
-            
-            pair_annotations = pair_annotations.rename(columns=columns_remamp)
-
             if human_pair:
                 human_agreement['cohen'][sdg] = annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())]
                 human_agreement['krippendorff'][sdg] = annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())]
 
 
-
 human_agreement['cohen'] = sort_dict(human_agreement['cohen'])
 human_agreement['krippendorff'] = sort_dict(human_agreement['krippendorff'])
 
-### To Extract single entity agreements
+
 mean_human_agreement, std_human_agreement = np.mean(list(human_agreement['cohen'].values())), np.std(list(human_agreement['cohen'].values()))
+print(f'\nHuman-Human agreement:\n\n{latexify(list(human_agreement["cohen"].values()))}\nMean agreement: {rounder(mean_human_agreement)}\tSTD agreement: {rounder(std_human_agreement)}')
+
 
 llm_names = list(LLM_VERSIONS.keys())
 
