@@ -131,104 +131,107 @@ def agreement_llm_llm( annotations, llm_names: list[str], metric:str ='cohen'):
 
     print(f'Mean agreement: {mean_agreement}\tSTD agreement: {std_agreement}\n')
 
-human_annotation_path = os.path.join(os.pardir,'datasets', "annotations")
-llm_annotation_path = os.path.join(os.pardir, 'datasets', 'other_tools')
 
-rounder = lambda x : np.round(x, 2)
-prepare_tool_labels = lambda x: tuple(map(float, str(x).replace('nan', '0').split(',')))
+if __name__ == '__main__':
 
-llm_version = 'temp_00' 
-verbose = True
+    human_annotation_path = os.path.join(os.pardir,'datasets', "annotations")
+    llm_annotation_path = os.path.join(os.pardir, 'datasets', 'other_tools')
 
-agreement_metrics = ['cohen', 'krippendorff']
+    rounder = lambda x : np.round(x, 2)
+    prepare_tool_labels = lambda x: tuple(map(float, str(x).replace('nan', '0').split(',')))
 
-human_annotations = ([os.path.join(human_annotation_path, file) for file in os.listdir(human_annotation_path)])
-llm_annotations = [os.path.join(llm_annotation_path, LLM_VERSIONS[file][llm_version])  for file in LLM_VERSIONS.keys()]
+    llm_version = 'temp_00' 
+    verbose = True
 
-annotation_sheets = ({annotator :  pd.read_excel(os.path.join(human_annotation_path, annotator+'.xlsx')) for annotator in ANNOTATORS}| #Flexible version
-                     {model : pd.read_excel(path+'.xlsx', sheet_name = 'ProcessedOutput') for model,path in zip(LLM_VERSIONS.keys(),llm_annotations)})
+    agreement_metrics = ['cohen', 'krippendorff']
 
-for sheet in annotation_sheets.values(): sheet.rename(columns={col: col.strip() for col in sheet.columns}, inplace=True)
+    human_annotations = ([os.path.join(human_annotation_path, file) for file in os.listdir(human_annotation_path)])
+    llm_annotations = [os.path.join(llm_annotation_path, LLM_VERSIONS[file][llm_version])  for file in LLM_VERSIONS.keys()]
 
-annotation_format = {'no': False,
-                     'si': True}
-reversed_annotation_format = {v:k for k,v in annotation_format.items()}
-annotation_values = {'agreements' : {agr_metric: {} for agr_metric in agreement_metrics}} #initialize dict for annotators agreement
+    annotation_sheets = ({annotator :  pd.read_excel(os.path.join(human_annotation_path, annotator+'.xlsx')) for annotator in ANNOTATORS}| #Flexible version
+                        {model : pd.read_excel(path+'.xlsx', sheet_name = 'ProcessedOutput') for model,path in zip(LLM_VERSIONS.keys(),llm_annotations)})
 
-human_agreement = {'cohen': {}, 'krippendorff': {}}
-# for each group we want to compute the agreement between the annotators overall and for each sdg
-for group in ANNOTATION_GROUPS.keys():
-    annotation_values[group] = {} #init group's annotation
-    annotation_values[group]['cohen'] = {}
-    annotation_values[group]['krippendorff'] = {}
+    for sheet in annotation_sheets.values(): sheet.rename(columns={col: col.strip() for col in sheet.columns}, inplace=True)
 
-    annotators_pairs = combinations(ANNOTATION_GROUPS[group]['annotators'], 2) #generates all the possible annotators pairs [IT'S AN ITERATOR]
-    edge_handles = []
+    annotation_format = {'no': False,
+                        'si': True}
+    reversed_annotation_format = {v:k for k,v in annotation_format.items()}
+    annotation_values = {'agreements' : {agr_metric: {} for agr_metric in agreement_metrics}} #initialize dict for annotators agreement
 
-    for annotators_pair in annotators_pairs: #Checking pairwise agreement         
+    human_agreement = {'cohen': {}, 'krippendorff': {}}
+    # for each group we want to compute the agreement between the annotators overall and for each sdg
+    for group in ANNOTATION_GROUPS.keys():
+        annotation_values[group] = {} #init group's annotation
+        annotation_values[group]['cohen'] = {}
+        annotation_values[group]['krippendorff'] = {}
 
-        pair_name = '-'.join(annotators_pair)
-        save_edge_cases = False
+        annotators_pairs = combinations(ANNOTATION_GROUPS[group]['annotators'], 2) #generates all the possible annotators pairs [IT'S AN ITERATOR]
+        edge_handles = []
 
-        if annotators_pair[0] not in annotation_sheets.keys() or annotators_pair[1] not in annotation_sheets.keys():
-            # if one of the annotators is missing, skip to the next one
-            continue
+        for annotators_pair in annotators_pairs: #Checking pairwise agreement         
 
-        annotation_values['agreements']['cohen'][pair_name]={}
-        annotation_values['agreements']['krippendorff'][pair_name]={}
+            pair_name = '-'.join(annotators_pair)
+            save_edge_cases = False
 
-        annotation_values[group]['cohen'][pair_name]={}
-        annotation_values[group]['krippendorff'][pair_name]={}
+            if annotators_pair[0] not in annotation_sheets.keys() or annotators_pair[1] not in annotation_sheets.keys():
+                # if one of the annotators is missing, skip to the next one
+                continue
 
-        pair_annotations = pd.merge(annotation_sheets[annotators_pair[0]],
-                                    annotation_sheets[annotators_pair[1]], 
-                                    on='handle', suffixes=annotators_pair)
+            annotation_values['agreements']['cohen'][pair_name]={}
+            annotation_values['agreements']['krippendorff'][pair_name]={}
 
-        pair_annotations.index = pair_annotations['handle']
-       
+            annotation_values[group]['cohen'][pair_name]={}
+            annotation_values[group]['krippendorff'][pair_name]={}
 
-        for sdg in ANNOTATION_GROUPS[group]['sdg']: #Gather annotators agreement at SDG level
-            human_pair = False
+            pair_annotations = pd.merge(annotation_sheets[annotators_pair[0]],
+                                        annotation_sheets[annotators_pair[1]], 
+                                        on='handle', suffixes=annotators_pair)
 
-            if annotators_pair[0] not in LLM_VERSIONS.keys() and annotators_pair[1] not in LLM_VERSIONS.keys(): 
-                human_pair = True
-
-            #transform into boolean the human annotations
-            annotator_0_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[0]], annotators_pair[0], LLM_VERSIONS.keys())
-            annotator_1_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[1]], annotators_pair[1], LLM_VERSIONS.keys())
-            assert (annotator_1_labels.index == annotator_0_labels.index).all()
-
-            label_discrepancies = annotator_0_labels != annotator_1_labels # boolean mask for conflict cases
-
-            annotation_values[group][sdg[:6] + ' agreement'] = rounder(cohen_kappa_score(annotator_0_labels, annotator_1_labels))
-            annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())] = (rounder(cohen_kappa_score(annotator_0_labels, annotator_1_labels)))
-            annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())] = rounder(krippendorff.alpha(np.array([list(map(lambda x: reversed_annotation_format[x],(annotator_0_labels.values))), 
-                                                                                                                        list(map(lambda x: reversed_annotation_format[x],(annotator_1_labels.values)))]).reshape(2,-1), level_of_measurement = 'nominal'))
-
-            annotation_values[group]['cohen'][pair_name][int(sdg[4:6].strip())] = annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())]
-            annotation_values[group]['krippendorff'][pair_name][int(sdg[4:6].strip())] = annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())]
-
-            if verbose:
-                print(f"\nCohen Agreement on {sdg} between {pair_name}:  {annotation_values[group][sdg[:6] + ' agreement']}\n")
-                print(confusion_matrix(annotator_0_labels, annotator_1_labels))
+            pair_annotations.index = pair_annotations['handle']
         
-            if human_pair:
-                human_agreement['cohen'][sdg] = annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())]
-                human_agreement['krippendorff'][sdg] = annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())]
+
+            for sdg in ANNOTATION_GROUPS[group]['sdg']: #Gather annotators agreement at SDG level
+                human_pair = False
+
+                if annotators_pair[0] not in LLM_VERSIONS.keys() and annotators_pair[1] not in LLM_VERSIONS.keys(): 
+                    human_pair = True
+
+                #transform into boolean the human annotations
+                annotator_0_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[0]], annotators_pair[0], LLM_VERSIONS.keys())
+                annotator_1_labels = standardize_annotation(pair_annotations[sdg + annotators_pair[1]], annotators_pair[1], LLM_VERSIONS.keys())
+                assert (annotator_1_labels.index == annotator_0_labels.index).all()
+
+                label_discrepancies = annotator_0_labels != annotator_1_labels # boolean mask for conflict cases
+
+                annotation_values[group][sdg[:6] + ' agreement'] = rounder(cohen_kappa_score(annotator_0_labels, annotator_1_labels))
+                annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())] = (rounder(cohen_kappa_score(annotator_0_labels, annotator_1_labels)))
+                annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())] = rounder(krippendorff.alpha(np.array([list(map(lambda x: reversed_annotation_format[x],(annotator_0_labels.values))), 
+                                                                                                                            list(map(lambda x: reversed_annotation_format[x],(annotator_1_labels.values)))]).reshape(2,-1), level_of_measurement = 'nominal'))
+
+                annotation_values[group]['cohen'][pair_name][int(sdg[4:6].strip())] = annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())]
+                annotation_values[group]['krippendorff'][pair_name][int(sdg[4:6].strip())] = annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())]
+
+                if verbose:
+                    print(f"\nCohen Agreement on {sdg} between {pair_name}:  {annotation_values[group][sdg[:6] + ' agreement']}\n")
+                    print(confusion_matrix(annotator_0_labels, annotator_1_labels))
+            
+                if human_pair:
+                    human_agreement['cohen'][sdg] = annotation_values['agreements']['cohen'][pair_name][int(sdg[4:6].strip())]
+                    human_agreement['krippendorff'][sdg] = annotation_values['agreements']['krippendorff'][pair_name][int(sdg[4:6].strip())]
 
 
-human_agreement['cohen'] = sort_dict(human_agreement['cohen'])
-human_agreement['krippendorff'] = sort_dict(human_agreement['krippendorff'])
+    human_agreement['cohen'] = sort_dict(human_agreement['cohen'])
+    human_agreement['krippendorff'] = sort_dict(human_agreement['krippendorff'])
 
 
-mean_human_agreement, std_human_agreement = np.mean(list(human_agreement['cohen'].values())), np.std(list(human_agreement['cohen'].values()))
-print(f'\nHuman-Human agreement:\n\n{latexify(list(human_agreement["cohen"].values()))}\nMean agreement: {rounder(mean_human_agreement)}\tSTD agreement: {rounder(std_human_agreement)}')
+    mean_human_agreement, std_human_agreement = np.mean(list(human_agreement['cohen'].values())), np.std(list(human_agreement['cohen'].values()))
+    print(f'\nHuman-Human agreement:\n\n{latexify(list(human_agreement["cohen"].values()))}\nMean agreement: {rounder(mean_human_agreement)}\tSTD agreement: {rounder(std_human_agreement)}')
 
 
-llm_names = list(LLM_VERSIONS.keys())
+    llm_names = list(LLM_VERSIONS.keys())
 
-for llm in llm_names:
-    agreement_llm_humans(annotation_values, llm)
+    for llm in llm_names:
+        agreement_llm_humans(annotation_values, llm)
 
-for llm_pair in combinations(llm_names, 2): ## Compute LLM-LLM agreement
-    agreement_llm_llm(annotation_values, llm_pair)
+    for llm_pair in combinations(llm_names, 2): ## Compute LLM-LLM agreement
+        agreement_llm_llm(annotation_values, llm_pair)

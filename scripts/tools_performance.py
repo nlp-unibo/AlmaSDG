@@ -184,7 +184,7 @@ class LLama_eval(Eval):
         model_name = self.model_name
         return super().evaluate(predictions, f1_averages, model_name)
 
-if __name__ == 'main':
+if __name__ == '__main__':
 
     other_tools = {'osdg': OSDG_eval(), 
                 'elsevierSingleLabel' : ElsevierSingle_eval(),
