@@ -1,9 +1,3 @@
-## API Calls to GPT to classify the Dataset and evaluate its capabilities as silver annotator
-# -> Important aspects:
-# - make as few calls as possible to the api: It costs
-# - Check the output structure to evaluate post processing aspects
-# - be quick about it
-
 from openai import OpenAI
 import openai
 import os
@@ -27,8 +21,7 @@ class GPTQuerier:
 
     self.data_to_query = self.get_dataset(folder_path, dataset_name, sheet_name)
     self.guidelines = self.get_guidelines()
-    self.prompt_function = {'guidelines': lambda x,y,z,w: self.generate_prompt_with_guidelines(x, self.guidelines,y,z,w),
-                            'noGuidelines': lambda x,y,z,w: self.generate_prompt_noGuidelines(x, self.guidelines,y,z,w)}
+    self.prompt_function = {'guidelines': lambda x,y,z,w: self.generate_prompt_with_guidelines(x, self.guidelines,y,z,w),}
     
     self.label_mapping = {'contributes': True,
                           'does not contribute': False}
@@ -64,8 +57,8 @@ class GPTQuerier:
   def get_pdf_guidelines(self, path:str=None)-> PdfReader:
 
     if path == None:
-      parent_dir = os.pardir
-      path = os.path.join(parent_dir, 'Datasets', 'second_annotation', 'guidelines_test', 'second_test', 'SDG_guide_lines.pdf')
+
+      path = os.path.join(os.pardir, 'dataset', 'guidelines.pdf')
 
     reader = PdfReader(path)
 
@@ -81,58 +74,46 @@ class GPTQuerier:
     
     return sdg_guidelines
 
-  def get_dataset(self, folder_path: str, output_file:str = 'complete_dataset.xlsx', sheet_name: str ='ArticlesToTag')->pd.DataFrame:
+  def get_dataset(self, folder_path: str, input_file:str = 'complete_dataset.xlsx', sheet_name: str ='ArticlesToTag')->pd.DataFrame:
     
     if type(folder_path) == list:
-      file_path = os.path.join(*folder_path, output_file)
+      file_path = os.path.join(*folder_path, input_file)
     else: 
-      file_path = os.path.join(folder_path, output_file)
-
-    return pd.read_excel(file_path, sheet_name=sheet_name)
+      file_path = os.path.join(folder_path, input_file)
+    
+    if input_file.split('.')[-1] == 'xlsx':
+      return pd.read_excel(file_path, sheet_name=sheet_name)
+    else:
+      return pd.read_csv(file_path)
 
   def generate_prompt_with_guidelines(self, sdg:str, sdg_guidelines:Dict[str,Dict[str,str]], title:str, abstract:str, keywords:str) -> str:
     prompt_model = f"""You are an expert in sustainable development. You must determine if a given scientific article contributes to {sdg}: {sdg_guidelines[sdg]['description']}
 
-  You must base your decision on the article's TITLE, ABSTRACT, and KEYWORDS, and on the following GUIDELINES:
+                      You must base your decision on the article's TITLE, ABSTRACT, and KEYWORDS, and on the following GUIDELINES:
 
-  GUIDELINES:
-  The purpose of the study is key to discriminate the themes the paper
-  contributes to (CONTRIBUTES) from those the paper does not contribute to but mentions
-  them as part of the general background context (DOES NOT CONTRIBUTE).
+                      GUIDELINES:
+                      The purpose of the study is key to discriminate the themes the paper
+                      contributes to (CONTRIBUTES) from those the paper does not contribute to but mentions
+                      them as part of the general background context (DOES NOT CONTRIBUTE).
 
-  Possible impacts or implications relevant to an SDG should be considered only if they
-  are stated explicitly in the document.
+                      Possible impacts or implications relevant to an SDG should be considered only if they
+                      are stated explicitly in the document.
 
-  {sdg_guidelines[sdg]['guidelines']}
+                      {sdg_guidelines[sdg]['guidelines']}
 
-  Your output should be either "CONTRIBUTES" or "DOES NOT CONTRIBUTE".
-  You should also explain your output based on the GUIDELINES.
+                      Your output should be either "CONTRIBUTES" or "DOES NOT CONTRIBUTE".
+                      You should also explain your output based on the GUIDELINES.
 
-  TITLE:	{title}
-  ABSTRACT: {abstract}
-  KEYWORDS: {keywords}
-  OUTPUT:
-  """
+                      TITLE:	{title}
+                      ABSTRACT: {abstract}
+                      KEYWORDS: {keywords}
+                      OUTPUT:
+                      """
     
     return prompt_model
 
-  def generate_prompt_noGuidelines(self, sdg:str, sdg_guidelines:Dict[str,Dict[str,str]], title:str, abstract:str, keywords:str) -> str:
-    prompt_model = f"""You are an expert in sustainable development. You must determine if a given scientific article contributes to {sdg}: {sdg_guidelines[sdg]['description']}
-
-  You must base your decision on the article's TITLE, ABSTRACT, and KEYWORDS.
-
-  Your output should be either "CONTRIBUTES" or "DOES NOT CONTRIBUTE".
-  You should also explain your output.
-
-  TITLE:	{title}
-  ABSTRACT: {abstract}
-  KEYWORDS: {keywords}
-  OUTPUT:
-  """
-    return prompt_model
-
   def process_answers(self, answers:pd.DataFrame)-> pd.DataFrame:
-    ## Save all the explanations, ease readability. ATTENTION: DIFFERENT CALLS TO THE MODEL CAN PRODUCE DIFFERENT OUTPUTS
+    ## Save all the explanations, ease readability
     sdg_labels = sorted([col for col in answers.columns if col.lower().startswith('sdg')],
                             key=lambda x: int(x.split('sdg')[1]))
     
@@ -147,10 +128,6 @@ class GPTQuerier:
   def save_results(self, results: pd.DataFrame, original_data:pd.DataFrame,path:str, start_index:int = 0, output_file:str = '')-> None:
     
     frame_results = pd.DataFrame.from_dict(results, orient='index').transpose()
-
-    # with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-    #         frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-
     processed_results = self.process_answers(frame_results)
     
     try:
@@ -175,15 +152,6 @@ class GPTQuerier:
 
     return None
 
-#Load dataset and repeat this cycle for each sample, gathering the results
-
-# def inititialize_variables(folder_path: str, dataset_name:str = 'complete_dataset.xlsx', sheet_name:str = 'ArticlesToTag')-> Union[pd.DataFrame, Dict[str,Dict[str,str]], Dict[str,List]]:
-#   df = get_dataset(folder_path, dataset_name, sheet_name)
-#   guidelines = get_guidelines()
-#   results = {'SDG '+ str(i):[] for i in range(1,18)}
-
-#   return df, guidelines, results
-
   def gpt_call(self, prompt_model:str):
     response = self.client.chat.completions.create(model="gpt-4o-mini",
                                                   messages=[{"role": "system", "content": "You are a helpful expert in sustainable development."},
@@ -199,7 +167,6 @@ class GPTQuerier:
     current_sdg = 'SDG '+ str(sdg)
     prompt_model = self.prompt_function[self.prompt_version](current_sdg, title, abstract, keywords)
 
-    # try:
     try:
       response = self.gpt_call(prompt_model)
         
@@ -208,84 +175,36 @@ class GPTQuerier:
       time.sleep(60) #exponential backoff suggested in openai site
       response = self.gpt_call(prompt_model)
 
-    # except Exception as e: # Exhausted free API calls or any other issue
-    #   print('Something went wrong, saving results...')
-    #   frame_results = pd.DataFrame.from_dict(self.results, orient='index').transpose()
-    #   with pd.ExcelWriter(output_file) as writer:
-    #     frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-    #   processed_frame = self.process_answers(frame_results)
-    #   self.save_results(frame_results, processed_frame, self.data_to_query, output_file, start_index=already_queried)
-    #   raise e
-
-    # self.results[current_sdg].append(response.choices[0].message.content)
-
     return self.answer_polarity(response.choices[0].message.content), response.choices[0].message.content
 
   def exception_save(self, results, output_file, already_queried):
         print('Something went wrong, saving results...')
-        # frame_results = pd.DataFrame.from_dict(results, orient='index').transpose()
-        # with pd.ExcelWriter(output_file) as writer:
-        #   frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-        # processed_frame = self.process_answers(frame_results)
         self.save_results(results, self.data_to_query, path=output_file, start_index=already_queried)
 
-dataset_name, sheet_name = 'data_to_extend_silver_second_trance.xlsx', 'ParsedData'
+dataset_name, sheet_name = 'alma_sdg.csv', 'None'
 
-# df, sdg_guidelines, results = inititialize_variables(folder_path= input_path,dataset_name= dataset_name, sheet_name = sheet_name)
-# prompt_function = {'guidelines': lambda x,y,z,w: generate_prompt_with_guidelines(x, sdg_guidelines,y,z,w),
-#                    'noGuidelines': lambda x,y,z,w: generate_prompt_noGuidelines(x, sdg_guidelines,y,z,w)}
+input_path =   [os.pardir, 'dataset']
+output_path = [os.pardir, 'validation_results']
 
-# prompt_version= 'guidelines'
-# temperature = 0.0
-# seed= 24
-
-input_path =   [os.pardir, 'Datasets', 'second_annotation', 'guidelines_test', 'second_test',]
-output_path = [os.pardir, 'Datasets', 'second_annotation', 'guidelines_test', 'second_test', 'annotated_sheets', "llm_annotations"]
 ANNOTATION_FOLDER_PATH = os.path.join(*output_path)
 
 debug = False
-name= 'silver_annotation_targeted_1_14_v2.xlsx'
+name= 'gpt_validation_results.xlsx'
 output_file = os.path.join(ANNOTATION_FOLDER_PATH, name) #output_file
-spec_output_file = os.path.join(ANNOTATION_FOLDER_PATH, 'specific_' + name)
 
-sdg_to_examine = [1, 14]
-min_sample_to_add = 15
-specific_results = {'sdg ' + str(sdg):[] for sdg in sdg_to_examine}
 results = {'handle':[], 'title':[], 'abstract': [], 'keywords':[]} | {'sdg ' + str(i):[] for i in range(1,18)}
-statistics = {sdg: {'positive': 0, 'negative': 0} for sdg in sdg_to_examine}
-
-statistics = {1: {'positive': 13, 'negative': 0},
-              14: {'positive': 7, 'negative': 0}}
 
 querier = GPTQuerier(input_path, dataset_name, sheet_name)
 
-if os.path.exists(output_file):
-  already_queried = pd.read_excel(output_file, 'ProcessedOutput').shape[0]
-else:
-  already_queried = 0
-
-print(f'Starting from article number: {already_queried}\n')
-
 
 for index in tqdm(range(querier.data_to_query.shape[0]), desc='Article', position= 0, leave = True):# Loop for each article in the dataset
-  # adapted_index = index + already_queried
-  # title = df.iloc[adapted_index].title
-  # abstract = df.iloc[adapted_index].abstract
-  # keywords = df.iloc[adapted_index].keywords
-  
-  # if index % 50 == 0:
-  #   with pd.ExcelWriter(output_file) as writer:
-  #       frame_results = pd.DataFrame.from_dict(results, orient='index').transpose()
-        
-  #       frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-  #       processed_frame = process_answers(frame_results)
-  #       save_results(frame_results, processed_frame, df, output_file, start_index=already_queried)
 
-  adapted_index = index + already_queried
+  adapted_index = index  
   title = querier.data_to_query.iloc[adapted_index].title
   abstract = querier.data_to_query.iloc[adapted_index].abstract
   keywords = querier.data_to_query.iloc[adapted_index].keywords
   handle = querier.data_to_query.iloc[adapted_index].handle
+  
   # if index % 50 == 0:
   #   with pd.ExcelWriter(output_file) as writer:
   #       frame_results = pd.DataFrame.from_dict(querier.results, orient='index').transpose()
@@ -294,47 +213,14 @@ for index in tqdm(range(querier.data_to_query.shape[0]), desc='Article', positio
   #       processed_frame = querier.process_answers(frame_results)
   #       querier.save_results(frame_results, processed_frame, querier.data_to_query, output_file, start_index=already_queried)
 
-  # for sdg in tqdm(range(1,18), desc='SDG', leave=False): #Loop for each SDG ... Turn into a method? #Change to match specific SDGs
-  query_others = False
-  for sdg in tqdm(sdg_to_examine, desc='SDG', leave=False):
+  for sdg in tqdm(range(1,18), desc='SDG', leave=False): #Loop for each SDG ... Turn into a method? #Change to match specific SDGs
 
     try: ### Methodizable
       answer_polarity, answer = querier.query_sdg(sdg, title, abstract, keywords)
-      specific_results['sdg '+str(sdg)].append(answer)
     except Exception as e:
-      querier.exception_save(results, output_file=output_file, already_queried=already_queried)
-      querier.exception_save(specific_results, output_file=spec_output_file, already_queried=already_queried)
+      querier.exception_save(results, output_file=output_file)
       raise e
-
-    if answer_polarity: 
-      statistics[sdg]['positive']+= 1 
-      print(f'\nNew positive sample for sdg {sdg} added to the pool.\nCurrent positive detected: {statistics[sdg]["positive"]}\nCurrent negative detected: {statistics[sdg]["negative"]}\n')
-      
-      query_others = True
-    else:
-      statistics[sdg]['negative']+= 1
     
-  if query_others:
-    results['title'].append(title)
-    results['abstract'].append(abstract)
-    results['keywords'].append(keywords)
-    results['handle'].append(handle)
-    for sdg in sdg_to_examine:
-      results['sdg '+str(sdg)].append(specific_results['sdg '+str(sdg)][-1]) #append last entry of the specific queried data samples
-
-    for other_sdg in tqdm([i for i in range(1,18) if i not in sdg_to_examine], desc= 'Other SDGs', leave=False):
-       
-      try: ### Methodizable
-        _, answer = querier.query_sdg(other_sdg, title, abstract, keywords)
-        results['sdg '+str(other_sdg)].append(answer) #append the answer to all the other non targeted data_samples 
-      except Exception as e:
-        querier.exception_save(results, output_file=output_file, already_queried=already_queried)
-        querier.exception_save(specific_results, output_file=spec_output_file, already_queried=already_queried)
-        raise e
-
-  if (np.array([i['positive'] for i in statistics.values()]) >= min_sample_to_add).any():
-    break
-
     # current_sdg = 'SDG '+ str(sdg)
     # prompt_model = prompt_function[prompt_version](current_sdg, title, abstract, keywords)
 
@@ -376,22 +262,8 @@ for index in tqdm(range(querier.data_to_query.shape[0]), desc='Article', positio
 
 # processed_frame = querier.process_answers(frame_results)
 # querier.save_results(frame_results, processed_frame, querier.data_to_query, output_file, start_index=already_queried)
-querier.save_results(results, querier.data_to_query, path= output_file, start_index=already_queried)
-querier.save_results(specific_results, querier.data_to_query, path = spec_output_file, start_index=already_queried)
+querier.save_results(results, querier.data_to_query, path= output_file)
+
 
 
 print('Successfully queried all articles. Closing...')
-
-# if __name__ == 'main': #To run from command line
-#Can be used to set temperature and seed while launching the script from terminal...
-# import argparse
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--temperature', type=int)
-# parser.add_argument('--seed', type=int)
-
-# args = parser.parse_args()
-
-
-## Need to make a method to check a couple of SDGs 1 and 14 right now (therefore should be a list)
-def check_specific_sdg (sdgs_to_check:list[int], ):
-  pass
