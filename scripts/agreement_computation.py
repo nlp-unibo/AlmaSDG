@@ -144,7 +144,7 @@ if __name__ == '__main__':
     verbose = False
 
     agreement_metrics = ['cohen', 'krippendorff']
-    print(os.listdir(human_annotation_path))
+
     human_annotations = ([os.path.join(human_annotation_path, file) for file in os.listdir(human_annotation_path)])
     llm_annotations = [os.path.join(llm_annotation_path, LLM_VERSIONS[file][llm_version])  for file in LLM_VERSIONS.keys()]
 
