@@ -135,7 +135,7 @@ def agreement_llm_llm( annotations, llm_names: list[str], metric:str ='cohen'):
 if __name__ == '__main__':
 
     human_annotation_path = os.path.join(os.pardir,'dataset', 'annotations')
-    llm_annotation_path = os.path.join(os.pardir, 'other_tools_results')
+    llm_annotation_path = os.path.join(os.pardir, 'validation_results')
 
     rounder = lambda x : np.round(x, 2)
     prepare_tool_labels = lambda x: tuple(map(float, str(x).replace('nan', '0').split(',')))

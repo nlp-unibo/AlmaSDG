@@ -46,7 +46,7 @@ class OSDG_eval(Eval):
 
     def __init__(self):
         super().__init__()
-        self.predictions = pd.read_csv(os.path.join(os.pardir, 'other_tools_results', 'osdg_prediction.csv')).sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_csv(os.path.join(os.pardir, 'validation_results', 'osdg_prediction.csv')).sort_values(by='handle').reset_index(drop=True)
         self.mlb = MultiLabelBinarizer(classes= np.array(range(1,18)))
         self.model_name= 'OSDG'
         
@@ -72,7 +72,7 @@ class ElsevierMulti_eval(Eval):
 
     def __init__(self):
         super().__init__()
-        self.predictions = pd.read_csv(os.path.join(os.pardir,'other_tools_results', 'elsevier-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_csv(os.path.join(os.pardir,'validation_results', 'elsevier-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
         self.model_name = 'Elsevier-Multilabel'
 
     def get_multilabel_prediction(self, threshold:float= 0.1):
@@ -95,7 +95,7 @@ class ElsevierSingle_eval(Eval):
 
     def __init__(self):
         super().__init__()
-        self.predictions = pd.read_csv(os.path.join(os.pardir, 'other_tools_results', 'elsevier-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_csv(os.path.join(os.pardir, 'validation_results', 'elsevier-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
         self.model_name= 'ElsevierSingle'
     
     def get_singlelabel_prediction(self):
@@ -119,7 +119,7 @@ class Aurora_eval(Eval):
     def __init__(self):
         super().__init__()
         self.model_name = 'Aurora'
-        self.predictions = pd.read_csv(os.path.join(os.pardir,  'other_tools_results', 'aurora-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_csv(os.path.join(os.pardir,  'validation_results', 'aurora-sdg-multi.csv')).sort_values(by='handle').reset_index(drop=True)
     
     def transform_probability(self, df:pd.DataFrame, threshold:float) -> pd.DataFrame:
         return df.map(lambda x: True if x>= threshold else False)
@@ -141,7 +141,7 @@ class GPT_eval(Eval):
     def __init__(self):
         super().__init__()
         self.model_name = 'gpt'
-        self.predictions = pd.read_excel(os.path.join(os.pardir,  'other_tools_results', 'gpt_answers_20082024_t00.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_excel(os.path.join(os.pardir,  'validation_results', 'gpt_answers_20082024_t00.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
     
     def evaluate(self):
         assert (self.alma_sdg.handle == self.predictions.handle).all()
@@ -156,7 +156,7 @@ class Gemini_eval(Eval):
     def __init__(self):
         super().__init__()
         self.model_name = 'gemini'
-        self.predictions = pd.read_excel(os.path.join(os.pardir,  'other_tools_results', 'gemini_results_temp00_270824.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_excel(os.path.join(os.pardir,  'validation_results', 'gemini_results_temp00_270824.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
         # self.alma_sdg = self.alma_sdg.sort_values(by='handle').reset_index(drop=True)
     
     def evaluate(self):
@@ -172,7 +172,7 @@ class LLama_eval(Eval):
     def __init__(self):
         super().__init__()
         self.model_name = 'llama'
-        self.predictions = pd.read_excel(os.path.join(os.pardir,  'other_tools_results', 'llama_01_05_25.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
+        self.predictions = pd.read_excel(os.path.join(os.pardir,  'validation_results', 'llama_01_05_25.xlsx'), sheet_name='ProcessedOutput').sort_values(by='handle').reset_index(drop=True)
         # self.alma_sdg = self.alma_sdg.sort_values(by='handle').reset_index(drop=True)
 
 
