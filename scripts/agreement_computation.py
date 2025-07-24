@@ -134,17 +134,17 @@ def agreement_llm_llm( annotations, llm_names: list[str], metric:str ='cohen'):
 
 if __name__ == '__main__':
 
-    human_annotation_path = os.path.join(os.pardir,'datasets', "annotations")
-    llm_annotation_path = os.path.join(os.pardir, 'datasets', 'other_tools')
+    human_annotation_path = os.path.join(os.pardir,'dataset', 'annotations')
+    llm_annotation_path = os.path.join(os.pardir, 'other_tools_results')
 
     rounder = lambda x : np.round(x, 2)
     prepare_tool_labels = lambda x: tuple(map(float, str(x).replace('nan', '0').split(',')))
 
     llm_version = 'temp_00' 
-    verbose = True
+    verbose = False
 
     agreement_metrics = ['cohen', 'krippendorff']
-
+    print(os.listdir(human_annotation_path))
     human_annotations = ([os.path.join(human_annotation_path, file) for file in os.listdir(human_annotation_path)])
     llm_annotations = [os.path.join(llm_annotation_path, LLM_VERSIONS[file][llm_version])  for file in LLM_VERSIONS.keys()]
 
