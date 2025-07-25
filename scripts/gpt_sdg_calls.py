@@ -177,7 +177,7 @@ class GPTQuerier:
 
     return self.answer_polarity(response.choices[0].message.content), response.choices[0].message.content
 
-  def exception_save(self, results, output_file, already_queried):
+  def exception_save(self, results, output_file, already_queried:int = 0):
         print('Something went wrong, saving results...')
         self.save_results(results, self.data_to_query, path=output_file, start_index=already_queried)
 
@@ -220,48 +220,8 @@ for index in tqdm(range(querier.data_to_query.shape[0]), desc='Article', positio
     except Exception as e:
       querier.exception_save(results, output_file=output_file)
       raise e
-    
-    # current_sdg = 'SDG '+ str(sdg)
-    # prompt_model = prompt_function[prompt_version](current_sdg, title, abstract, keywords)
 
-    # try:
-    #   try:
-    #     response = client.chat.completions.create(model="gpt-4o-mini",
-    #                                               messages=[{"role": "system", "content": "You are a helpful expert in sustainable development."},
-    #                                                         {"role": "user", "content": prompt_model}],
-    #                                               seed= seed,
-    #                                               temperature= temperature )
-          
-    #   except openai.RateLimitError: #Too many calls in one minute, stopping for a little while
-    #     print('Too many reqeusts in current time window, pausing for 30 sec.')
-    #     time.sleep(60) #exponential backoff suggested in openai site
-    #     response = client.chat.completions.create(model="gpt-4o-mini",
-    #                                               messages=[{"role": "system", "content": "You are a helpful expert in sustainable development."},
-    #                                                         {"role": "user", "content": prompt_model}],
-    #                                               seed= seed,
-    #                                               temperature= temperature)
 
-    # except Exception as e: # Exhausted free API calls or any other issue
-    #   print('Something went wrong, saving results...')
-    #   frame_results = pd.DataFrame.from_dict(results, orient='index').transpose()
-    #   with pd.ExcelWriter(output_file) as writer:
-    #     frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-    #   processed_frame = process_answers(frame_results)
-    #   save_results(frame_results, processed_frame, df, output_file, start_index=already_queried)
-    #   raise e
-    
-    # if debug:
-    #   print(response.choices[0].message.content)
-    #   debug = False
-    # results[current_sdg].append(response.choices[0].message.content)
-
-# frame_results = pd.DataFrame.from_dict(querier.results, orient='index').transpose()
-
-# with pd.ExcelWriter(output_file) as writer:
-#         frame_results.to_excel(writer, sheet_name='UnprocessedAnswers')
-
-# processed_frame = querier.process_answers(frame_results)
-# querier.save_results(frame_results, processed_frame, querier.data_to_query, output_file, start_index=already_queried)
 querier.save_results(results, querier.data_to_query, path= output_file)
 
 
